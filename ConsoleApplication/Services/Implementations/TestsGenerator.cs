@@ -16,12 +16,20 @@ namespace ConsoleApplication.Services.Implementations
             Configuration = configuration;
 
             FilesReadBlock = new TransformBlock<string, string>(
-                async path => await File.ReadAllTextAsync(path)
+                async path => await File.ReadAllTextAsync(path),
+                new ExecutionDataflowBlockOptions
+                {
+                    MaxDegreeOfParallelism = Configuration.MaxCountOfParallelFilesRead
+                }
             );
 
             TestsGeneratorBlock = new TransformManyBlock<string, TestFile>(
                 async sourceFileContent =>
-                    await Task.Run(() => TestsCreator.Create(sourceFileContent))
+                    await Task.Run(() => TestsCreator.Create(sourceFileContent)),
+                new ExecutionDataflowBlockOptions
+                {
+                    MaxDegreeOfParallelism = Configuration.MaxCountOfParallelTestsGenerationTasks
+                }
             );
 
             SaveTestsBlock = new ActionBlock<TestFile>(
@@ -29,7 +37,11 @@ namespace ConsoleApplication.Services.Implementations
                     await File.WriteAllTextAsync(
                         Path.Combine(Configuration.DestinationDirectory, testsFile.Filename),
                         testsFile.Contents
-                    )
+                    ),
+                new ExecutionDataflowBlockOptions
+                {
+                    MaxDegreeOfParallelism = Configuration.MaxCountOfParallelFilesWrite
+                }
             );
         }
 
@@ -42,12 +54,16 @@ namespace ConsoleApplication.Services.Implementations
         public async Task Generate(IEnumerable<string> filesPaths)
         {
             var linkOptions = new DataflowLinkOptions {PropagateCompletion = true};
-            FilesReadBlock.LinkTo(TestsGeneratorBlock, linkOptions);
-            TestsGeneratorBlock.LinkTo(SaveTestsBlock, linkOptions);
+            using (FilesReadBlock.LinkTo(TestsGeneratorBlock, linkOptions))
+            {
+                using (TestsGeneratorBlock.LinkTo(SaveTestsBlock, linkOptions))
+                {
+                    foreach (var filePath in filesPaths) FilesReadBlock.Post(filePath);
 
-            foreach (var filePath in filesPaths) FilesReadBlock.Post(filePath);
-
-            await SaveTestsBlock.Completion;
+                    FilesReadBlock.Complete();
+                    await SaveTestsBlock.Completion;
+                }
+            }
         }
     }
 }
