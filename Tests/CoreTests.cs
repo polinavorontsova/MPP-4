@@ -21,6 +21,17 @@ namespace Tests
             }
         ";
 
+        private const string PrivateMethodsAndPropertiesClassTemplate = @"
+            using NUnit.Framework;
+
+            namespace Tests
+            {
+                public class PrivateMethodsAndPropertiesClassTests
+                {
+                }
+            }
+        ";
+
         private const string ClassWithOnlyOnePublicMethodTemplate = @"
             using NUnit.Framework;
 
@@ -130,6 +141,21 @@ namespace Tests
                 FilterTestFileContent(ClassWithOnePublicMethodSecondTemplate),
                 result.Select(testFile => FilterTestFileContent(testFile.Contents))
                     .ToImmutableList()
+            );
+        }
+
+        [Test]
+        public void Test_CreateTestClassWithNoContentWhenNoPublicMethodsExistSuccess()
+        {
+            var text = File.ReadAllText("../../../TestClasses/PrivateMethodsAndPropertiesClass.cs");
+
+            var result = Creator.Create(text);
+
+            Assert.AreEqual(1, result.Count());
+            Assert.AreEqual("PrivateMethodsAndPropertiesClassTests.cs", result.First().Filename);
+            Assert.AreEqual(
+                FilterTestFileContent(PrivateMethodsAndPropertiesClassTemplate),
+                FilterTestFileContent(result.First().Contents)
             );
         }
 
