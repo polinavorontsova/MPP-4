@@ -1,7 +1,4 @@
-﻿nam e spac
-e Test
-s.Test
-Classes
+﻿namespace Tests.TestClasses
 {
     public class EmptyClass
     {
